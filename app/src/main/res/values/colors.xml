@@ -5,7 +5,7 @@
     <color name="surface2">#1C1C2E</color>
     <color name="accent">#7C6AF7</color>
     <color name="accent2">#F76AC8</color>
-    name="text">#E8E8F0</color>
+    <color name="text">#E8E8F0</color>
     <color name="text_muted">#6B6B8A</color>
     <color name="cat_social">#1DA1F2</color>
     <color name="cat_games">#A855F7</color>
