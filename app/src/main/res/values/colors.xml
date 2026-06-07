@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#0A0A0F</color>
+    <color name="surface">#14141F</color>
+    <color name="surface2">#1C1C2E</color>
+    <color name="accent">#7C6AF7</color>
+    <color name="accent2">#F76AC8</color>
+    name="text">#E8E8F0</color>
+    <color name="text_muted">#6B6B8A</color>
+    <color name="cat_social">#1DA1F2</color>
+    <color name="cat_games">#A855F7</color>
+    <color name="cat_tools">#22C55E</color>
+    <color name="cat_media">#FB923C</color>
+    <color name="cat_finance">#34D399</color>
+    <color name="cat_health">#EF4444</color>
+    <color name="cat_education">#FBBF24</color>
+    <color name="cat_travel">#0EA5E9</color>
+    <color name="cat_shopping">#F43F5E</color>
+    <color name="cat_other">#94A3B8</color>
+</resources>
