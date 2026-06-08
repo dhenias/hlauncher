@@ -1,6 +1,7 @@
 package com.dhenias.hlauncher;
 
 import android.app.Activity;
+import android.os.Build;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -236,10 +237,13 @@ public class SettingsActivity extends Activity {
         btn.setBackgroundColor(Color.parseColor(Prefs.getAccentColor(this)));
         btn.setPadding(dp(16), dp(4), dp(16), dp(4));
         btn.setOnClickListener(v -> {
-            Intent i = new Intent(Intent.ACTION_MAIN);
-            i.addCategory(Intent.CATEGORY_HOME);
-            i.addCategory(Intent.CATEGORY_DEFAULT);
-            startActivity(i);
+            if (getCallingActivity() != null) finish();
+            Intent i = new Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+            try { startActivity(i); } catch (Exception e) {
+                Intent fallback = new Intent(Intent.ACTION_MAIN);
+                fallback.addCategory(Intent.CATEGORY_HOME);
+                startActivity(Intent.createChooser(fallback, "Select Home App"));
+            }
         });
         row.addView(btn);
         rootLayout.addView(row, cardLp());
