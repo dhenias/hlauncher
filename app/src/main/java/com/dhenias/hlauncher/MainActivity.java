@@ -7,23 +7,30 @@ import android.app.WallpaperManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.ParcelFileDescriptor;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
+import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends Activity {
 
-    private static final int REQ_SETTINGS    = 101;
-    private static final int REQ_PERMISSION  = 102;
+    private static final int REQ_SETTINGS   = 101;
+    private static final int REQ_PERMISSION = 102;
     private FrameLayout rootLayout;
 
     @Override
@@ -41,14 +48,14 @@ public class MainActivity extends Activity {
         rootLayout = new FrameLayout(this);
         setContentView(rootLayout);
 
-        // request storage permission for wallpaper on Android < 13
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        // request storage permission for wallpaper (Android <= 12)
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
             if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(
                     new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
                     REQ_PERMISSION);
-                return; // buildLayout called in onRequestPermissionsResult
+                return;
             }
         }
 
@@ -63,7 +70,6 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
         super.onRequestPermissionsResult(req, perms, results);
-        // build regardless of result — wallpaper just won't show if denied
         buildLayout();
         if (Prefs.getFirstRun(this)) {
             Prefs.setFirstRun(this, false);
@@ -75,51 +81,86 @@ public class MainActivity extends Activity {
         rootLayout.removeAllViews();
         rootLayout.setBackgroundColor(0xFF0a0a0f);
 
-        // wallpaper layer
+        // ── wallpaper ──
         if (Prefs.getUseWallpaper(this)) {
-            try {
-                WallpaperManager wm = WallpaperManager.getInstance(this);
-                Drawable wp = wm.getDrawable();
-                if (wp != null) {
-                    ImageView wpView = new ImageView(this);
-                    wpView.setImageDrawable(wp);
-                    wpView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    wpView.setAlpha(0.4f);
-                    rootLayout.addView(wpView, new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-                }
-            } catch (Exception ignored) {}
+            Drawable wpDrawable = loadWallpaper();
+            if (wpDrawable != null) {
+                ImageView wpView = new ImageView(this);
+                wpView.setImageDrawable(wpDrawable);
+                wpView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                rootLayout.addView(wpView, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+            }
         }
 
-        // dark overlay so text stays readable
-        View overlay = new View(this);
-        overlay.setBackgroundColor(0xCC0a0a0f);
-        rootLayout.addView(overlay, new FrameLayout.LayoutParams(
+        // dark scrim so content is readable
+        View scrim = new View(this);
+        scrim.setBackgroundColor(0xBB0a0a0f);
+        rootLayout.addView(scrim, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // launcher content
+        // launcher
         LauncherView lv = new LauncherView(this, getInstalledApps());
         rootLayout.addView(lv, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
     }
 
+    private Drawable loadWallpaper() {
+        try {
+            WallpaperManager wm = WallpaperManager.getInstance(this);
+
+            // Android 8.1+ — getWallpaperFile gives the raw file
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                ParcelFileDescriptor pfd = wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM);
+                if (pfd != null) {
+                    FileDescriptor fd = pfd.getFileDescriptor();
+                    Bitmap bmp = BitmapFactory.decodeFileDescriptor(fd);
+                    pfd.close();
+                    if (bmp != null) return new BitmapDrawable(getResources(), bmp);
+                }
+            }
+
+            // fallback — getDrawable (works on older Android)
+            Drawable d = wm.getDrawable();
+            if (d != null) return d;
+
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     private void showDefaultLauncherDialog() {
         new AlertDialog.Builder(this)
-            .setTitle("Set as Home Launcher?")
-            .setMessage("Set hLauncher as your default home screen?")
-            .setPositiveButton("Yes", (d, w) -> openHomePicker())
+            .setTitle("Set as Default Launcher")
+            .setMessage("To use hLauncher as your home screen, set it as the default launcher in your device settings.")
+            .setPositiveButton("Open Settings", (d, w) -> openDefaultAppsSettings())
             .setNegativeButton("Later", null)
             .show();
     }
 
-    public void openHomePicker() {
-        Intent i = new Intent(Intent.ACTION_MAIN);
-        i.addCategory(Intent.CATEGORY_HOME);
-        i.addCategory(Intent.CATEGORY_DEFAULT);
-        startActivity(i);
+    public void openDefaultAppsSettings() {
+        try {
+            // direct to default apps / home app settings
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                Intent i = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+                startActivity(i);
+            } else {
+                // older Android — show home chooser so user can pick + set always
+                Intent i = new Intent(Intent.ACTION_MAIN);
+                i.addCategory(Intent.CATEGORY_HOME);
+                i.addCategory(Intent.CATEGORY_DEFAULT);
+                startActivity(Intent.createChooser(i, "Select Home App"));
+            }
+        } catch (Exception e) {
+            // last resort fallback
+            try {
+                Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName()));
+                startActivity(i);
+            } catch (Exception ignored) {}
+        }
     }
 
     public void openSettings() {
@@ -151,5 +192,5 @@ public class MainActivity extends Activity {
         return list;
     }
 
-    @Override public void onBackPressed() { /* stay */ }
+    @Override public void onBackPressed() {}
 }
